@@ -24,4 +24,4 @@ medium-term trends while controlling drawdowns via volatility-adjusted exposure.
 - `notebooks/` — exploratory analysis
 
 ## How to Run
-Coming soon.
+Analysis notebook
