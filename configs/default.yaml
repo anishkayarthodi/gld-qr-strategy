@@ -1,0 +1,251 @@
+# =============================================================================
+# GLD QUANTITATIVE STRATEGY - DEFAULT CONFIGURATION
+# =============================================================================
+# This file contains ALL tunable parameters for the trading strategy.
+#
+# HOW TO IMPROVE CALMAR RATIO (Calmar = CAGR / |Max Drawdown|)
+# ------------------------------------------------------------
+# 1. Reduce max drawdown:
+#    - backtest.drawdown_scaling: threshold + scale_min (already enabled)
+#    - exposure.max_long: lower (e.g. 1.0) caps upside but also limits DD
+#    - volatility.target_volatility: lower (e.g. 0.15) = smaller positions
+#    - ulcer: lower threshold or stronger reduction = cut exposure in pain faster
+# 2. Improve CAGR (must be positive for Calmar ≥ 2):
+#    - trend: long_regime_threshold / short_regime_threshold (capture more upside)
+#    - exposure.smoothing_alpha: higher = faster into positions (e.g. 0.25)
+# 3. Trade less, better: stricter regime/trend so you're only in when conviction is high.
+#
+# WHY USE A CONFIG FILE?
+# ----------------------
+# 1. Separation of concerns: Code logic vs. parameter values
+# 2. Easy experimentation: Change parameters without touching code
+# 3. Robustness testing: Easily shock parameters by ±10%
+# 4. Reproducibility: Save configs for different experiments
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# DATA CONFIGURATION
+# -----------------------------------------------------------------------------
+data:
+  # Path to the GLD price data CSV file
+  file_path: "data/processed/gld.csv"
+  
+  # Date column name in the CSV
+  date_column: "Date"
+  
+  # Price column to use for signals (we use Close prices)
+  # WHY CLOSE? Close prices represent the final consensus price of the day.
+  # All our signals are "close-to-close" meaning we trade at close.
+  price_column: "Close"
+  
+  # Volume column (used for volume-based indicators)
+  volume_column: "Volume"
+
+# -----------------------------------------------------------------------------
+# TREND FOLLOWING PARAMETERS
+# -----------------------------------------------------------------------------
+# The core idea: If gold has been trending UP over the past N days,
+# we expect it to continue trending UP tomorrow (momentum/trend following).
+#
+# We measure trend by fitting a line through log prices and measuring the SLOPE.
+# Positive slope = uptrend = go long
+# Negative slope = downtrend = go short
+# -----------------------------------------------------------------------------
+trend:
+  # Trend model choice: "slope" or "sma_crossover"
+  model: "slope"
+  # Number of days to look back when calculating the trend slope
+  # 
+  # WHY 60 DAYS?
+  # - Too short (e.g., 10 days): Captures noise, not real trends. Whipsaws.
+  # - Too long (e.g., 200 days): Misses trend reversals, too slow to react.
+  # - 60 days ≈ 3 months: Captures medium-term trends while filtering noise.
+  #
+  # ROBUSTNESS: ±10% shock means testing with 54 and 66 days.
+  lookback_days: 60
+
+  # Fast/slow trend components for regime filtering
+  # Fast captures short-to-medium trend timing
+  # Slow defines the overall regime direction (bull/bear)
+  fast_lookback_days: 20
+  slow_lookback_days: 180
+
+  # SMA crossover parameters (used when model = "sma_crossover")
+  sma_fast_lookback_days: 20
+  sma_slow_lookback_days: 100
+  sma_diff_threshold: 0.0
+  
+  # Normalization window for the slope z-score
+  # We convert the raw slope into a z-score: (slope - mean) / std
+  # This makes the signal comparable across different volatility regimes.
+  zscore_lookback: 252  # ~1 year of trading days
+  
+  # Minimum slope threshold to consider a trend "real"
+  # If |slope| < threshold, we consider it "no trend" (reduce exposure)
+  # This prevents trading in choppy, sideways markets.
+  min_slope_threshold: 0.1
+
+  # Minimum slow-trend z-score to define a clear regime
+  slow_regime_threshold: 0.3
+  # Regime thresholds: symmetric so shorts enter as easily as longs.
+  # Gold declined 37% from 2011-2013; asymmetric thresholds missed that.
+  long_regime_threshold: 0.15
+  short_regime_threshold: 0.15
+
+  # 1.0 = disable regime filter (it was confirming trends too late, hurting CAGR)
+  weak_regime_scale: 1.0
+
+# -----------------------------------------------------------------------------
+# VOLATILITY PARAMETERS
+# -----------------------------------------------------------------------------
+# Volatility measures how much prices swing up and down.
+# HIGH VOLATILITY = dangerous, trends unreliable, reduce exposure
+# LOW VOLATILITY = stable, trends reliable, can increase exposure
+#
+# We use volatility for:
+# 1. Position sizing (inverse volatility weighting)
+# 2. Regime filtering (reduce exposure in high-vol regimes)
+# -----------------------------------------------------------------------------
+volatility:
+  # Window for calculating realized volatility (std of returns)
+  #
+  # WHY 20 DAYS?
+  # - 20 trading days ≈ 1 month
+  # - Short enough to capture recent volatility changes
+  # - Long enough to be statistically meaningful
+  #
+  # ROBUSTNESS: ±10% shock means testing with 18 and 22 days.
+  lookback_days: 20
+  
+  # Target volatility for position sizing
+  # We scale positions so that our STRATEGY volatility targets this level.
+  # 
+  # WHY 15%?
+  # - 15% annualized volatility is moderate risk
+  # - Higher than a bond portfolio (~5%), lower than pure equity (~20%)
+  # - Allows for meaningful returns without excessive risk
+  target_volatility: 0.12  # 12% annualized (smaller positions = lower drawdowns)
+  target_vol_high_regime: 0.12  # Same as normal
+
+  # Percentile threshold for "high volatility" regime
+  # If current vol is above this percentile, we reduce exposure
+  high_vol_percentile: 90
+  
+  # Diagnostic: disable high-vol reduction (handled by vol targeting already)
+  high_vol_reduction: 1.0
+  high_vol_reduction_long: 1.0
+  
+  # Window for calculating volatility trend (is vol rising or falling?)
+  vol_trend_lookback: 10
+
+# ---------------------------------------------------------------------------
+# DRAWDOWN / ULCER RISK FILTER
+# ---------------------------------------------------------------------------
+# The Ulcer Index measures drawdown "pain." We reduce exposure when it is high.
+ulcer:
+  # Rolling window for Ulcer Index calculation
+  lookback_days: 14
+
+  # Threshold above which we reduce exposure
+  # UI is a decimal drawdown metric; 0.02 = ~2% average drawdown pain
+  threshold: 0.02
+
+  # Diagnostic: disable ulcer filter
+  reduction: 1.0
+  reduction_when_long: 1.0
+
+# -----------------------------------------------------------------------------
+# MEAN REVERSION PARAMETERS (RSI)
+# -----------------------------------------------------------------------------
+# RSI (Relative Strength Index) measures if price is "overbought" or "oversold"
+# 
+# THE IDEA:
+# - RSI < 30: Price dropped a lot recently, might bounce (add to longs)
+# - RSI > 70: Price rose a lot recently, might pull back (reduce longs)
+#
+# We use RSI as a MODIFIER to our trend signal, not as the primary signal.
+# This helps us avoid buying at the top of a rally or selling at the bottom.
+# -----------------------------------------------------------------------------
+mean_reversion:
+  # RSI lookback period
+  # 
+  # WHY 14 DAYS?
+  # - Standard RSI period used by most traders
+  # - Balances responsiveness with noise filtering
+  #
+  # Alternative: RSI(2) is more responsive but noisier
+  rsi_period: 14
+  
+  # RSI thresholds for "extreme" readings
+  oversold_threshold: 0     # Disabled (set to 0)
+  overbought_threshold: 100  # Disabled (set to 100)
+  
+  # How much to adjust exposure at extreme RSI levels
+  # At RSI=20 (very oversold), we add this much to exposure
+  # At RSI=80 (very overbought), we subtract this much from exposure
+  extreme_adjustment: 0.0
+
+# -----------------------------------------------------------------------------
+# EXPOSURE & LEVERAGE CONSTRAINTS
+# -----------------------------------------------------------------------------
+exposure:
+  # Maximum long exposure (1.5 = 150% long, using leverage)
+  max_long: 1.5
+  
+  # Maximum short exposure
+  max_short: -1.5
+  
+  # Smoothing factor for exposure changes
+  # Prevents whipsawing by smoothing the signal over time
+  # Higher = smoother (slower to react), Lower = more responsive
+  #
+  # We use exponential moving average: new = alpha * raw + (1-alpha) * old
+  smoothing_alpha: 0.3
+  
+  # Minimum absolute exposure to count as "in market"
+  # For calculating time-in-market metric
+  min_active_exposure: 0.1
+
+# -----------------------------------------------------------------------------
+# BACKTEST CONFIGURATION
+# -----------------------------------------------------------------------------
+backtest:
+  # Start date for the backtest (format: MM/DD/YY or YYYY-MM-DD)
+  # The challenge specifies 2011-2019
+  start_date: "2011-01-01"
+  end_date: "2019-12-31"
+  
+  # Transaction costs (one-way, in decimal)
+  # 0.001 = 0.1% = 10 basis points
+  # 
+  # WHY MODEL COSTS?
+  # Real trading has costs: commissions, bid-ask spread, slippage
+  # A strategy that looks great ignoring costs might be unprofitable in reality
+  transaction_cost: 0.001
+  
+  # Starting capital (for equity curve, doesn't affect returns)
+  initial_capital: 100000
+
+  # Drawdown-based exposure scaling: DISABLED
+  # An 8% DD threshold was pro-cyclical -- it cut exposure during normal
+  # trend-following drawdowns, locking in losses right before recovery.
+  # drawdown_scaling:
+  #   threshold: 0.08
+  #   scale_min: 0.4
+  #   max_drawdown_days: 15
+  #   time_stop_scale: 0.5
+
+# -----------------------------------------------------------------------------
+# ROBUSTNESS TESTING
+# -----------------------------------------------------------------------------
+robustness:
+  # Percentage to shock parameters by (0.1 = 10%)
+  shock_percentage: 0.10
+  
+  # Parameters to test for robustness
+  # Each parameter will be tested at base value, +10%, and -10%
+  parameters_to_shock:
+    - "trend.lookback_days"
+    - "volatility.lookback_days"
+    - "mean_reversion.rsi_period"
+

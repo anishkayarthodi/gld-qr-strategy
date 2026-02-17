@@ -1,0 +1,111 @@
+buy_and_hold:
+  cagr: !!python/object/apply:numpy.core.multiarray.scalar
+  - &id001 !!python/object/apply:numpy.dtype
+    args:
+    - f8
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - <
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    cDkt8xUVxb8=
+  calmar_ratio: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    rzVsJZdpa78=
+  max_drawdown: -49.22109542756489
+  sharpe_ratio: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    aJD2JVW7sL8=
+  total_return: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    4kVs3N5N978=
+  volatility: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    H6L1i5HILkA=
+challenge_check:
+  calmar_meets_target: !!python/object/apply:numpy.core.multiarray.scalar
+  - &id002 !!python/object/apply:numpy.dtype
+    args:
+    - b1
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - '|'
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    AA==
+  time_in_market_meets_target: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id002
+  - !!binary |
+    AQ==
+end_date: '2019-12-31'
+start_date: '2011-02-02'
+strategy:
+  cagr: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    /q+dZE1s+L8=
+  calmar_ratio: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    N04etEiXp78=
+  max_drawdown: -33.128707671684396
+  sharpe_ratio: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    31irjBCL1b8=
+  sortino_ratio: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    /rqRogPB2L8=
+  total_return: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    DoRtXT2XKcA=
+  volatility: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    MdbZAm99IkA=
+trading:
+  avg_loss: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    WU5tAJTr1L8=
+  avg_win: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    XF9do34L1T8=
+  profit_factor: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    UlWxj/UG7z8=
+  time_in_market: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    NbxFH3rGS0A=
+  win_loss_ratio: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    3P0j/GgY8D8=
+  win_rate: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    FxRwjmBmRUA=
+trading_days: 2243
