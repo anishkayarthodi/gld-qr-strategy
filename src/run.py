@@ -211,7 +211,11 @@ def run_strategy(
         ulcer_reduction_when_long=config['ulcer'].get('reduction_when_long'),
         max_long=config['exposure']['max_long'],
         max_short=config['exposure']['max_short'],
-        smoothing_alpha=config['exposure']['smoothing_alpha']
+        smoothing_alpha=config['exposure']['smoothing_alpha'],
+        use_multi_timeframe=config['trend'].get('use_multi_timeframe', False),
+        fast_weight=config['trend'].get('fast_weight', 0.5),
+        medium_weight=config['trend'].get('medium_weight', 0.5),
+        rebalance_threshold=config['exposure'].get('rebalance_threshold', 0.0)
     )
     
     # =========================================================================

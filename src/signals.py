@@ -160,6 +160,101 @@ def generate_sma_crossover_signal(
     return np.tanh(diff * 10) * 2
 
 
+def generate_multi_timeframe_signal(
+    fast_zscore: pd.Series,
+    medium_zscore: pd.Series,
+    fast_weight: float = 0.5,
+    medium_weight: float = 0.5,
+    min_threshold: float = 0.1
+) -> pd.Series:
+    """
+    Blend trend signals from multiple timeframes for diversification.
+
+    WHY BLEND TIMEFRAMES?
+    ---------------------
+    Different lookback periods capture different market dynamics:
+    - Fast (20-day): Responsive, catches reversals early, more false signals
+    - Medium (60-day): Smoother, fewer whipsaws, slower to react
+
+    Blending reduces drawdowns because the two signals are imperfectly
+    correlated -- when one whipsaws, the other may hold steady.
+
+    Parameters
+    ----------
+    fast_zscore : pd.Series
+        Z-score from the fast slope (e.g., 20-day)
+    medium_zscore : pd.Series
+        Z-score from the medium slope (e.g., 60-day)
+    fast_weight : float
+        Weight on the fast signal (0 to 1)
+    medium_weight : float
+        Weight on the medium signal (0 to 1)
+    min_threshold : float
+        Minimum |zscore| to generate non-zero signal (per timeframe)
+
+    Returns
+    -------
+    pd.Series
+        Blended trend signal
+    """
+    fast_signal = generate_trend_signal(fast_zscore, min_threshold=min_threshold)
+    medium_signal = generate_trend_signal(medium_zscore, min_threshold=min_threshold)
+
+    blended = fast_weight * fast_signal + medium_weight * medium_signal
+    return blended
+
+
+def apply_rebalance_threshold(
+    signal: pd.Series,
+    threshold: float = 0.05
+) -> pd.Series:
+    """
+    Only change position when signal differs from current by more than threshold.
+
+    WHY A REBALANCE THRESHOLD?
+    --------------------------
+    EMA smoothing changes exposure by a small amount EVERY day, which means
+    you pay transaction costs every day. Over 9 years, this adds up to $6-9k
+    on a $100k portfolio -- a massive drag on returns.
+
+    A rebalance threshold creates a "dead band": if the new signal is within
+    ±threshold of the current position, DON'T TRADE. Only rebalance when
+    conviction has shifted meaningfully.
+
+    Example with threshold=0.1:
+        Raw signal: 0.50, 0.52, 0.48, 0.51, 0.30, 0.25
+        Result:     0.50, 0.50, 0.50, 0.50, 0.30, 0.25
+        (Days 2-4: no trade because change < 0.1, saving 3 days of costs)
+
+    Parameters
+    ----------
+    signal : pd.Series
+        Signal after smoothing
+    threshold : float
+        Minimum change to trigger rebalance (0 = disabled)
+
+    Returns
+    -------
+    pd.Series
+        Signal with dead-band rebalancing applied
+    """
+    if threshold <= 0:
+        return signal
+
+    values = signal.values.copy()
+    current = 0.0
+
+    for i in range(len(values)):
+        if np.isnan(values[i]):
+            continue
+        if abs(values[i] - current) > threshold:
+            current = values[i]
+        else:
+            values[i] = current
+
+    return pd.Series(values, index=signal.index)
+
+
 def apply_trend_regime_filter(
     signal: pd.Series,
     slow_slope_zscore: pd.Series,
@@ -697,7 +792,11 @@ def generate_signals(
     ulcer_reduction_when_long: Optional[float] = None,
     max_long: float = 1.5,
     max_short: float = -1.0,
-    smoothing_alpha: float = 0.3
+    smoothing_alpha: float = 0.3,
+    use_multi_timeframe: bool = False,
+    fast_weight: float = 0.5,
+    medium_weight: float = 0.5,
+    rebalance_threshold: float = 0.0
 ) -> pd.DataFrame:
     """
     Generate trading signals from indicators.
@@ -739,6 +838,15 @@ def generate_signals(
             df['sma_fast'],
             df['sma_slow'],
             min_threshold=sma_diff_threshold
+        )
+    elif use_multi_timeframe:
+        print(f"  - Generating multi-timeframe signal (fast={fast_weight:.1f}, medium={medium_weight:.1f})")
+        df['trend_signal'] = generate_multi_timeframe_signal(
+            df['slope_fast_zscore'],
+            df['slope_zscore'],
+            fast_weight=fast_weight,
+            medium_weight=medium_weight,
+            min_threshold=min_slope_threshold
         )
     else:
         print("  - Generating base trend signal from FAST slope z-score")
@@ -826,6 +934,16 @@ def generate_signals(
         max_long=max_long,
         max_short=max_short
     )
+    
+    # =========================================================================
+    # STEP 5b: Rebalance threshold (reduce turnover)
+    # =========================================================================
+    if rebalance_threshold > 0:
+        print(f"  - Applying rebalance threshold ({rebalance_threshold})")
+        df['signal'] = apply_rebalance_threshold(
+            df['signal'],
+            threshold=rebalance_threshold
+        )
     
     # =========================================================================
     # STEP 6: Shift for execution (CRITICAL!)

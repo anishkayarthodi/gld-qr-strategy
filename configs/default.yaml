@@ -85,6 +85,12 @@ trend:
   # This prevents trading in choppy, sideways markets.
   min_slope_threshold: 0.1
 
+  # Multi-timeframe blending: combine fast (20d) and medium (60d) slope signals
+  # Scan found single-timeframe outperforms blending on this data.
+  use_multi_timeframe: false
+  fast_weight: 0.5
+  medium_weight: 0.5
+
   # Minimum slow-trend z-score to define a clear regime
   slow_regime_threshold: 0.3
   # Regime thresholds: symmetric so shorts enter as easily as longs.
@@ -124,8 +130,8 @@ volatility:
   # - 15% annualized volatility is moderate risk
   # - Higher than a bond portfolio (~5%), lower than pure equity (~20%)
   # - Allows for meaningful returns without excessive risk
-  target_volatility: 0.12  # 12% annualized (smaller positions = lower drawdowns)
-  target_vol_high_regime: 0.12  # Same as normal
+  target_volatility: 0.14  # 14% annualized (optimal for max CAGR)
+  target_vol_high_regime: 0.14  # Same as normal
 
   # Percentile threshold for "high volatility" regime
   # If current vol is above this percentile, we reduce exposure
@@ -200,7 +206,12 @@ exposure:
   # Higher = smoother (slower to react), Lower = more responsive
   #
   # We use exponential moving average: new = alpha * raw + (1-alpha) * old
-  smoothing_alpha: 0.3
+  smoothing_alpha: 0.5
+
+  # Rebalance threshold: only change position when signal moves by more than this
+  # Dramatically reduces turnover and transaction costs
+  # 0 = disabled (trade every day), 0.12 = require 12% signal change to rebalance
+  rebalance_threshold: 0.12
   
   # Minimum absolute exposure to count as "in market"
   # For calculating time-in-market metric
